@@ -1,0 +1,20 @@
+[package]
+name = "par-map"
+version = "0.1.0"
+authors = ["Guillaume Pinot <texitoi@texitoi.eu>"]
+description = "Parallel map and flat_map."
+documentation = "https://docs.rs/par-map"
+repository = "https://github.com/TeXitoi/par-map"
+keywords = ["parallel", "iterator"]
+categories = ["concurrency"]
+license = "WTFPL"
+readme = "README.md"
+
+[badges]
+travis-ci = { repository = "TeXitoi/par-map" }
+appveyor = { repository = "TeXitoi/par-map" }
+
+[dependencies]
+futures = "0.1.13"
+futures-cpupool = "0.1.5"
+num_cpus = "1.2"
