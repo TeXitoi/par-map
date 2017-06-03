@@ -5,6 +5,12 @@
 // Version 2, as published by Sam Hocevar. See the COPYING file for
 // more details.
 
+//! This crate provides an easy way to get parallel iteration.  The
+//! contract of the added method are (almost) exacly the same as the
+//! method without the `par_` prefix proposed in `std`.
+
+#[deny(missing_docs)]
+
 extern crate futures;
 extern crate futures_cpupool;
 extern crate num_cpus;
@@ -14,7 +20,23 @@ use std::sync::Arc;
 use futures::Future;
 use futures_cpupool::{CpuPool, CpuFuture};
 
+/// This trait extends `std::iter::Iterator` with parallel
+/// iterator adaptors.  Just `use` it to get access to the methods:
+///
+/// ```
+/// use par_map::ParMap;
+/// ```
 pub trait ParMap: Iterator + Sized {
+    /// Takes a closure and creates an iterator which calls that
+    /// closure on each element, exactly as
+    /// `std::iter::Iterator::map`.
+    ///
+    /// The order of the elements are guaranted to be unchanged.  Of
+    /// course, the given closures can be executed in parallel out of
+    /// order.
+    ///
+    /// # Example
+    ///
     /// ```
     /// use par_map::ParMap;
     /// let a = [1, 2, 3];
@@ -42,6 +64,15 @@ pub trait ParMap: Iterator + Sized {
         res
     }
 
+    /// Creates an iterator that works like map, but flattens nested
+    /// structure, exactly as `std::iter::Iterator::flat_map`.
+    ///
+    /// The order of the elements are guaranted to be unchanged.  Of
+    /// course, the given closures can be executed in parallel out of
+    /// order.
+    ///
+    /// # Example
+    ///
     /// ```
     /// use par_map::ParMap;
     /// let words = ["alpha", "beta", "gamma"];
@@ -73,6 +104,11 @@ pub trait ParMap: Iterator + Sized {
 }
 impl<I: Iterator> ParMap for I {}
 
+/// An iterator that maps the values of `iter` with `f`.
+///
+/// This struct is created by the `flat_map()` method on
+/// `ParIter`. See its documentation for more.
+#[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
 pub struct Map<I, B, F> {
     pool: CpuPool,
     queue: VecDeque<CpuFuture<B, ()>>,
@@ -108,6 +144,12 @@ impl<I: Iterator, B: Send + 'static, F> Iterator for Map<I, B, F>
     }
 }
 
+/// An iterator that maps each element to an iterator, and yields the
+/// elements of the produced iterators.
+///
+/// This struct is created by the `par_flat_map()` method on
+/// `ParIter`.  See its documentation for more.
+#[must_use = "iterator adaptors are lazy and do nothing unless consumed"]
 pub struct FlatMap<I: Iterator, U: IntoIterator, F> {
     pool: CpuPool,
     queue: VecDeque<CpuFuture<Vec<U::Item>, ()>>,
