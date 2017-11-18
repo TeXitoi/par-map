@@ -14,6 +14,8 @@
 extern crate futures;
 extern crate futures_cpupool;
 extern crate num_cpus;
+#[macro_use]
+extern crate pub_iterator_type;
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -149,7 +151,7 @@ pub trait ParMap: Iterator + Sized {
     /// assert_eq!(iter.next(), Some(6));
     /// assert_eq!(iter.next(), None);
     /// ```
-    fn par_packed_map<'a, B, F>(self, nb: usize, f: F) -> Box<Iterator<Item = B> + 'a>
+    fn par_packed_map<'a, B, F>(self, nb: usize, f: F) -> PackedMap<'a, B>
     where
         F: Sync + Send + 'static + Fn(Self::Item) -> B,
         B: Send + 'static,
@@ -161,7 +163,7 @@ pub trait ParMap: Iterator + Sized {
             let f = f.clone();
             iter.into_iter().map(move |i| f(i))
         };
-        Box::new(self.pack(nb).par_flat_map(f))
+        PackedMap(Box::new(self.pack(nb).par_flat_map(f)))
     }
 
     /// Same as `par_flat_map`, but the parallel work is batched by `nb` items.
@@ -177,7 +179,7 @@ pub trait ParMap: Iterator + Sized {
     ///     .collect();
     /// assert_eq!(merged, "alphabetagamma");
     /// ```
-    fn par_packed_flat_map<'a, U, F>(self, nb: usize, f: F) -> Box<Iterator<Item = U::Item> + 'a>
+    fn par_packed_flat_map<'a, U, F>(self, nb: usize, f: F) -> PackedFlatMap<'a, U::Item>
     where
         F: Sync + Send + 'static + Fn(Self::Item) -> U,
         U: IntoIterator + 'a,
@@ -190,7 +192,7 @@ pub trait ParMap: Iterator + Sized {
             let f = f.clone();
             iter.into_iter().flat_map(move |i| f(i))
         };
-        Box::new(self.pack(nb).par_flat_map(f))
+        PackedFlatMap(Box::new(self.pack(nb).par_flat_map(f)))
     }
 }
 impl<I: Iterator> ParMap for I {}
@@ -313,4 +315,13 @@ impl<I: Iterator> Iterator for Pack<I> {
         let item: Vec<_> = self.iter.by_ref().take(self.nb).collect();
         if item.is_empty() { None } else { Some(item) }
     }
+}
+
+pub_iterator_type! {
+    #[doc="As `Map` but packed."]
+    PackedMap['a, B] = Box<Iterator<Item = B> + 'a>
+}
+pub_iterator_type! {
+    #[doc="As `FlatMap` but packed."]
+    PackedFlatMap['a, T] = Box<Iterator<Item = T> + 'a>
 }
