@@ -61,9 +61,10 @@ pub trait ParMap: Iterator + Sized {
     /// assert_eq!(iter.next(), None);
     /// ```
     fn par_map<B, F>(self, f: F) -> Map<Self, B, F>
-        where F: Sync + Send + 'static + Fn(Self::Item) -> B,
-              B: Send + 'static,
-              Self::Item: Send + 'static
+    where
+        F: Sync + Send + 'static + Fn(Self::Item) -> B,
+        B: Send + 'static,
+        Self::Item: Send + 'static,
     {
         let num_threads = num_cpus::get();
         let mut res = Map {
@@ -97,10 +98,11 @@ pub trait ParMap: Iterator + Sized {
     /// assert_eq!(merged, "alphabetagamma");
     /// ```
     fn par_flat_map<U, F>(self, f: F) -> FlatMap<Self, U, F>
-        where F: Sync + Send + 'static + Fn(Self::Item) -> U,
-              U: IntoIterator,
-              U::Item: Send + 'static,
-              Self::Item: Send + 'static
+    where
+        F: Sync + Send + 'static + Fn(Self::Item) -> U,
+        U: IntoIterator,
+        U::Item: Send + 'static,
+        Self::Item: Send + 'static,
     {
         let num_threads = num_cpus::get();
         let mut res = FlatMap {
@@ -131,10 +133,7 @@ pub trait ParMap: Iterator + Sized {
     /// assert_eq!(None, iter.next());
     /// ```
     fn pack(self, nb: usize) -> Pack<Self> {
-        Pack {
-            iter: self,
-            nb: nb,
-        }
+        Pack { iter: self, nb: nb }
     }
 
     /// Same as `par_map`, but the parallel work is batched by `nb` items.
@@ -151,10 +150,11 @@ pub trait ParMap: Iterator + Sized {
     /// assert_eq!(iter.next(), None);
     /// ```
     fn par_packed_map<'a, B, F>(self, nb: usize, f: F) -> Box<Iterator<Item = B> + 'a>
-        where F: Sync + Send + 'static + Fn(Self::Item) -> B,
-              B: Send + 'static,
-              Self::Item: Send + 'static,
-              Self: 'a
+    where
+        F: Sync + Send + 'static + Fn(Self::Item) -> B,
+        B: Send + 'static,
+        Self::Item: Send + 'static,
+        Self: 'a,
     {
         let f = Arc::new(f);
         let f = move |iter: Vec<Self::Item>| {
@@ -178,11 +178,12 @@ pub trait ParMap: Iterator + Sized {
     /// assert_eq!(merged, "alphabetagamma");
     /// ```
     fn par_packed_flat_map<'a, U, F>(self, nb: usize, f: F) -> Box<Iterator<Item = U::Item> + 'a>
-        where F: Sync + Send + 'static + Fn(Self::Item) -> U,
-              U: IntoIterator + 'a,
-              U::Item: Send + 'static,
-              Self::Item: Send + 'static,
-              Self: 'a
+    where
+        F: Sync + Send + 'static + Fn(Self::Item) -> U,
+        U: IntoIterator + 'a,
+        U::Item: Send + 'static,
+        Self::Item: Send + 'static,
+        Self: 'a,
     {
         let f = Arc::new(f);
         let f = move |iter: Vec<Self::Item>| {
@@ -206,8 +207,9 @@ pub struct Map<I, B, F> {
     f: Arc<F>,
 }
 impl<I: Iterator, B: Send + 'static, F> Map<I, B, F>
-    where F: Sync + Send + 'static + Fn(I::Item) -> B,
-          I::Item: Send + 'static
+where
+    F: Sync + Send + 'static + Fn(I::Item) -> B,
+    I::Item: Send + 'static,
 {
     fn spawn(&mut self) {
         let future = match self.iter.next() {
@@ -221,8 +223,12 @@ impl<I: Iterator, B: Send + 'static, F> Map<I, B, F>
     }
 }
 impl<I: Iterator, B: Send + 'static, F> Iterator for Map<I, B, F>
-    where F: Sync + Send + 'static + Fn(I::Item) -> B,
-          I::Item: Send + 'static
+where
+    F: Sync
+        + Send
+        + 'static
+        + Fn(I::Item) -> B,
+    I::Item: Send + 'static,
 {
     type Item = B;
     fn next(&mut self) -> Option<Self::Item> {
@@ -248,25 +254,32 @@ pub struct FlatMap<I: Iterator, U: IntoIterator, F> {
     cur_iter: ::std::vec::IntoIter<U::Item>,
 }
 impl<I: Iterator, U: IntoIterator, F> FlatMap<I, U, F>
-    where F: Sync + Send + 'static + Fn(I::Item) -> U,
-          U::Item: Send + 'static,
-          I::Item: Send + 'static
+where
+    F: Sync + Send + 'static + Fn(I::Item) -> U,
+    U::Item: Send + 'static,
+    I::Item: Send + 'static,
 {
     fn spawn(&mut self) {
         let future = match self.iter.next() {
             None => return,
             Some(item) => {
                 let f = self.f.clone();
-                self.pool.spawn_fn(move || Ok(f(item).into_iter().collect()))
+                self.pool.spawn_fn(
+                    move || Ok(f(item).into_iter().collect()),
+                )
             }
         };
         self.queue.push_back(future);
     }
 }
 impl<I: Iterator, U: IntoIterator, F> Iterator for FlatMap<I, U, F>
-    where F: Sync + Send + 'static + Fn(I::Item) -> U,
-          U::Item: Send + 'static,
-          I::Item: Send + 'static
+where
+    F: Sync
+        + Send
+        + 'static
+        + Fn(I::Item) -> U,
+    U::Item: Send + 'static,
+    I::Item: Send + 'static,
 {
     type Item = U::Item;
     fn next(&mut self) -> Option<Self::Item> {
