@@ -10,17 +10,16 @@
 //! method without the `par_` prefix proposed in `std`.
 
 #[deny(missing_docs)]
-
 extern crate futures;
 extern crate futures_cpupool;
 extern crate num_cpus;
 #[macro_use]
 extern crate pub_iterator_type;
 
+use futures::Future;
+use futures_cpupool::{CpuFuture, CpuPool};
 use std::collections::VecDeque;
 use std::sync::Arc;
-use futures::Future;
-use futures_cpupool::{CpuPool, CpuFuture};
 
 /// This trait extends `std::iter::Iterator` with parallel
 /// iterator adaptors.  Just `use` it to get access to the methods:
@@ -191,7 +190,7 @@ pub trait ParMap: Iterator + Sized {
     fn with_nb_threads(self, nb: usize) -> ParMapBuilder<Self> {
         ParMapBuilder {
             iter: self,
-            nb_threads: nb
+            nb_threads: nb,
         }
     }
 }
@@ -239,10 +238,7 @@ where
 }
 impl<I: Iterator, B: Send + 'static, F> Iterator for Map<I, B, F>
 where
-    F: Sync
-        + Send
-        + 'static
-        + Fn(I::Item) -> B,
+    F: Sync + Send + 'static + Fn(I::Item) -> B,
     I::Item: Send + 'static,
 {
     type Item = B;
@@ -279,9 +275,8 @@ where
             None => return,
             Some(item) => {
                 let f = self.f.clone();
-                self.pool.spawn_fn(
-                    move || Ok(f(item).into_iter().collect()),
-                )
+                self.pool
+                    .spawn_fn(move || Ok(f(item).into_iter().collect()))
             }
         };
         self.queue.push_back(future);
@@ -302,10 +297,7 @@ where
 }
 impl<I: Iterator, U: IntoIterator, F> Iterator for FlatMap<I, U, F>
 where
-    F: Sync
-        + Send
-        + 'static
-        + Fn(I::Item) -> U,
+    F: Sync + Send + 'static + Fn(I::Item) -> U,
     U::Item: Send + 'static,
     I::Item: Send + 'static,
 {
@@ -339,7 +331,11 @@ impl<I: Iterator> Iterator for Pack<I> {
     type Item = Vec<I::Item>;
     fn next(&mut self) -> Option<Self::Item> {
         let item: Vec<_> = self.iter.by_ref().take(self.nb).collect();
-        if item.is_empty() { None } else { Some(item) }
+        if item.is_empty() {
+            None
+        } else {
+            Some(item)
+        }
     }
 }
 

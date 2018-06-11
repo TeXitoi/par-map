@@ -12,6 +12,6 @@ matrix:
   allow_failures:
   - rust: nightly
 script:
-- cargo fmt -- --write-mode=diff
+- cargo fmt -- --check
 - cargo build --verbose
 - cargo test --verbose
