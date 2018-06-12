@@ -1,6 +1,6 @@
 [package]
 name = "par-map"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Guillaume Pinot <texitoi@texitoi.eu>"]
 description = "Parallel map and flat_map."
 documentation = "https://docs.rs/par-map"

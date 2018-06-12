@@ -1,17 +1,14 @@
 language: rust
-sudo: false
 cache: cargo
-before_script:
-- cargo install -f rustfmt
-- export PATH=$PATH:$HOME/.cargo/bin
 rust:
-- nightly
-- beta
-- stable
-matrix:
-  allow_failures:
-  - rust: nightly
+  - stable
+  - beta
+  - nightly
 script:
-- cargo fmt -- --write-mode=diff
-- cargo build --verbose
-- cargo test --verbose
+  - cargo test
+matrix:
+  include:
+    - rust: stable
+      env: RUN=RUSTFMT
+      before_script: rustup component add rustfmt-preview
+      script: cargo fmt --all -- --write-mode=diff
