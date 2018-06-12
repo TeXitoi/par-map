@@ -9,5 +9,6 @@ script:
 matrix:
   include:
     - rust: stable
+      env: RUN=RUSTFMT
       before_script: rustup component add rustfmt-preview
-      script: cargo fmt --all -- --check
+      script: cargo fmt --all -- --write-mode=diff
