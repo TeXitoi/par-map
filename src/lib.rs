@@ -29,7 +29,8 @@ use std::sync::Arc;
 /// ```
 ///
 /// Each iterator adaptor will have its own thread pool of the number
-/// of CPU.  At maximum, 2 times the number of CPU tasks will be
+/// of CPU.  At maximum, 2 times the number of defined threads
+/// (the default is the number of cpus) will be
 /// launched in advance, guarantying that the memory will not be
 /// exceeded if the iterator is not consumed faster that the
 /// production.  To be effective, the given function should be costy
@@ -359,6 +360,7 @@ pub struct ParMapBuilder<I> {
 }
 
 impl<I: Iterator> ParMapBuilder<I> {
+    /// As ParMap::par_map, but with a custom number of threads
     /// # Example
     ///
     /// ```
@@ -379,6 +381,7 @@ impl<I: Iterator> ParMapBuilder<I> {
         Map::with_nb_threads(self.iter, f, self.nb_threads)
     }
 
+    /// As ParMap::par_flat_map, but with a custom number of threads
     /// # Example
     ///
     /// ```
@@ -399,5 +402,73 @@ impl<I: Iterator> ParMapBuilder<I> {
         I::Item: Send + 'static,
     {
         FlatMap::with_nb_threads(self.iter, f, self.nb_threads)
+    }
+
+    /// As ParMap::par_packed_map, but with a custom number of threads
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use par_map::ParMap;
+    /// let a = [1, 2, 3];
+    /// let mut iter = a.iter().cloned().par_packed_map(2, |x| 2 * x);
+    /// assert_eq!(iter.next(), Some(2));
+    /// assert_eq!(iter.next(), Some(4));
+    /// assert_eq!(iter.next(), Some(6));
+    /// assert_eq!(iter.next(), None);
+    /// ```
+    pub fn par_packed_map<'a, B, F, G>(self, nb: usize, f: F) -> PackedMap<'a, B>
+    where
+        F: Sync + Send + 'static + Fn(I::Item) -> B,
+        B: Send + 'static,
+        I::Item: Send + 'static,
+        G: Sync + Send + 'static + Fn(Vec<I::Item>) -> B,
+        Self: 'a,
+    {
+        let f = Arc::new(f);
+        let f = move |iter: Vec<I::Item>| {
+            let f = f.clone();
+            iter.into_iter().map(move |i| f(i))
+        };
+        PackedMap(Box::new(
+            self.iter
+                .pack(nb)
+                .with_nb_threads(self.nb_threads)
+                .par_flat_map(f),
+        ))
+    }
+
+    /// As ParMap::par_packed_flat_map, but with a custom number of threads
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use par_map::ParMap;
+    /// let words = ["alpha", "beta", "gamma"];
+    /// let merged: String = words.iter()
+    ///     .cloned()
+    ///     .par_packed_flat_map(2, |s| s.chars())
+    ///     .collect();
+    /// assert_eq!(merged, "alphabetagamma");
+    /// ```
+    pub fn par_packed_flat_map<'a, U, F>(self, nb: usize, f: F) -> PackedFlatMap<'a, U::Item>
+    where
+        F: Sync + Send + 'static + Fn(I::Item) -> U,
+        U: IntoIterator + 'a,
+        U::Item: Send + 'static,
+        I::Item: Send + 'static,
+        Self: 'a,
+    {
+        let f = Arc::new(f);
+        let f = move |iter: Vec<I::Item>| {
+            let f = f.clone();
+            iter.into_iter().flat_map(move |i| f(i))
+        };
+        PackedFlatMap(Box::new(
+            self.iter
+                .pack(nb)
+                .with_nb_threads(self.nb_threads)
+                .par_flat_map(f),
+        ))
     }
 }
