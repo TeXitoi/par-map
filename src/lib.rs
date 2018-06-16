@@ -161,7 +161,8 @@ pub trait ParMap: Iterator + Sized {
         Self::Item: Send + 'static,
         Self: 'a,
     {
-        self.with_nb_threads(num_cpus::get()).par_packed_flat_map(nb, f)
+        self.with_nb_threads(num_cpus::get())
+            .par_packed_flat_map(nb, f)
     }
 
     /// Configure the number of thread used.
