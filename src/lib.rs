@@ -68,7 +68,7 @@ pub trait ParMap: Iterator + Sized {
         B: Send + 'static,
         Self::Item: Send + 'static,
     {
-        Map::with_nb_threads(self, f, num_cpus::get())
+        self.with_nb_threads(num_cpus::get()).par_map(f)
     }
 
     /// Creates an iterator that works like map, but flattens nested
@@ -96,7 +96,7 @@ pub trait ParMap: Iterator + Sized {
         U::Item: Send + 'static,
         Self::Item: Send + 'static,
     {
-        FlatMap::with_nb_threads(self, f, num_cpus::get())
+        self.with_nb_threads(num_cpus::get()).par_flat_map(f)
     }
 
     /// Creates an iterator that yields `Vec<Self::Item>` of size `nb`
@@ -137,12 +137,7 @@ pub trait ParMap: Iterator + Sized {
         Self::Item: Send + 'static,
         Self: 'a,
     {
-        let f = Arc::new(f);
-        let f = move |iter: Vec<Self::Item>| {
-            let f = f.clone();
-            iter.into_iter().map(move |i| f(i))
-        };
-        PackedMap(Box::new(self.pack(nb).par_flat_map(f)))
+        self.with_nb_threads(num_cpus::get()).par_packed_map(nb, f)
     }
 
     /// Same as `par_flat_map`, but the parallel work is batched by `nb` items.
@@ -166,12 +161,7 @@ pub trait ParMap: Iterator + Sized {
         Self::Item: Send + 'static,
         Self: 'a,
     {
-        let f = Arc::new(f);
-        let f = move |iter: Vec<Self::Item>| {
-            let f = f.clone();
-            iter.into_iter().flat_map(move |i| f(i))
-        };
-        PackedFlatMap(Box::new(self.pack(nb).par_flat_map(f)))
+        self.with_nb_threads(num_cpus::get()).par_packed_flat_map(nb, f)
     }
 
     /// Configure the number of thread used.
@@ -223,7 +213,6 @@ where
         };
         self.queue.push_back(future);
     }
-
     fn with_nb_threads(iter: I, f: F, nb_thread: usize) -> Self {
         let mut res = Map {
             pool: CpuPool::new(nb_thread),
@@ -366,7 +355,10 @@ impl<I: Iterator> ParMapBuilder<I> {
     /// ```
     /// use par_map::ParMap;
     /// let a = [1, 2, 3];
-    /// let mut iter = a.iter().cloned().with_nb_threads(2).par_map(|x| 2 * x);
+    /// let mut iter = a.iter()
+    ///     .cloned()
+    ///     .with_nb_threads(2)
+    ///     .par_map(|x| 2 * x);
     /// assert_eq!(iter.next(), Some(2));
     /// assert_eq!(iter.next(), Some(4));
     /// assert_eq!(iter.next(), Some(6));
@@ -411,18 +403,20 @@ impl<I: Iterator> ParMapBuilder<I> {
     /// ```
     /// use par_map::ParMap;
     /// let a = [1, 2, 3];
-    /// let mut iter = a.iter().cloned().par_packed_map(2, |x| 2 * x);
+    /// let mut iter = a.iter()
+    ///     .cloned()
+    ///     .with_nb_threads(2)
+    ///     .par_packed_map(2, |x| 2 * x);
     /// assert_eq!(iter.next(), Some(2));
     /// assert_eq!(iter.next(), Some(4));
     /// assert_eq!(iter.next(), Some(6));
     /// assert_eq!(iter.next(), None);
     /// ```
-    pub fn par_packed_map<'a, B, F, G>(self, nb: usize, f: F) -> PackedMap<'a, B>
+    pub fn par_packed_map<'a, B, F>(self, nb: usize, f: F) -> PackedMap<'a, B>
     where
         F: Sync + Send + 'static + Fn(I::Item) -> B,
         B: Send + 'static,
         I::Item: Send + 'static,
-        G: Sync + Send + 'static + Fn(Vec<I::Item>) -> B,
         Self: 'a,
     {
         let f = Arc::new(f);
@@ -447,6 +441,7 @@ impl<I: Iterator> ParMapBuilder<I> {
     /// let words = ["alpha", "beta", "gamma"];
     /// let merged: String = words.iter()
     ///     .cloned()
+    ///     .with_nb_threads(2)
     ///     .par_packed_flat_map(2, |s| s.chars())
     ///     .collect();
     /// assert_eq!(merged, "alphabetagamma");
